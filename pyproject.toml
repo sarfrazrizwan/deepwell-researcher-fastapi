@@ -1,0 +1,19 @@
+[project]
+name = "deepwell"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.142.2",
+    "langchain>=1.4.3",
+    "langchain-openai>=1.6.7",
+    "langgraph>=1.2.13",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.4.0",
+    "notebook>=7.6.3",
+]
