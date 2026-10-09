@@ -21,5 +21,6 @@ class Thread(TimestampMixin, Base):
     user_id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String(255), nullable=True, default=None)
     status: Mapped[ThreadStatus] = mapped_column(default=None, nullable=True)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(), default=None, nullable=True)
     
     user: Mapped["User"] = relationship(back_populates="threads")
