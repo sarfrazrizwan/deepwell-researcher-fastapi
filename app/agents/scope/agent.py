@@ -11,7 +11,7 @@ from app.config import get_settings
 from langgraph.types import Command
 
 config = get_settings()
-model = init_chat_model("openai:gpt-4.1", temperature=0.0, api_key=config.OPENAI_API_KEY)
+model = init_chat_model("openai:gpt-4.1", temperature=0.0, api_key=config.openai_api_key)
 
 class AgentState(BaseModel):
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -19,13 +19,13 @@ class AgentState(BaseModel):
     
     
 
-def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brief", "__end__"]]:
+async def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brief", "__end__"]]:
     
     chat_model = model.with_structured_output(ClarifyWithUser)
-    messages = get_buffer_string(state["messages"])
+    messages = get_buffer_string(state.messages)
     prompt = SCOPING_PROMPT.format(messages=messages, date=get_today_date_str())
     
-    response = chat_model.invoke([HumanMessage(content=prompt)])
+    response = await chat_model.ainvoke([HumanMessage(content=prompt)])
     
     if response.need_clarification:
         return Command(
@@ -39,30 +39,31 @@ def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brie
     )
 
 
-def write_research_brief(state: AgentState) -> dict:
+async def write_research_brief(state: AgentState) -> dict:
     
     chat_model = model.with_structured_output(ResearchBriefWriter)
-    messages = get_buffer_string(state["messages"])
+    messages = get_buffer_string(state.messages)
     
-    response = chat_model.invoke([HumanMessage(content=BRIEF_WRITER_PROMPT.format(
+    response = await chat_model.ainvoke([HumanMessage(content=BRIEF_WRITER_PROMPT.format(
         messages=messages,
         date=get_today_date_str()
     ))])
     
-    state["research_brief"] = response.research_brief
     
-    return state
+    return { "research_brief": response.research_brief }
     
     
+def build():
+    
+    builder = StateGraph(AgentState)
+    builder.add_node("clarify_with_user", clarify_with_user)    
+    builder.add_node("write_research_brief", write_research_brief)
 
-builder = StateGraph(AgentState)
-builder.add_node("clarify_with_user", clarify_with_user)    
-builder.add_node("write_research_brief", write_research_brief)
+    builder.add_edge(START, "clarify_with_user")
+    builder.add_edge("write_research_brief", END)
 
-builder.add_edge(START, "clarify_with_user")
-builder.add_edge("write_research_brief", END)
-
-agent = builder.compile()
+    agent = builder.compile()
+    return agent
 
     
 

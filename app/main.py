@@ -1,8 +1,12 @@
 from fastapi import FastAPI
 from app.api.routes import messages
+from app.config import get_settings
+from contextlib import asynccontextmanager
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.store.postgres.aio import AsyncPostgresStore
+from app.core.lifespan import lifespan
 
-
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 
 # @app.get("/")

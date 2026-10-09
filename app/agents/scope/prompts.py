@@ -93,31 +93,12 @@ Apply these checks before you decide:
 </bias_reduction>
 
 <output_instructions>
-Respond with valid JSON only. Do not include markdown fences, comments, or any text outside the JSON object. Use exactly these keys:
-
-{
-  "need_clarification": boolean,
-  "question": "The clarifying message for the user, or an empty string if none is needed",
-  "verification": "The confirmation message if no clarification is needed, or an empty string otherwise"
-}
-
+Follow the structure output schema and return results.
 Rules:
-- If need_clarification is true, question must be non-empty and verification must be an empty string.
-- If need_clarification is false, verification must be non-empty and question must be an empty string.
+- If need_clarification is True, question must be non-empty and verification must be an empty string.
+- If need_clarification is False, verification must be non-empty and question must be an empty string.
 - Write both messages in the same language the user used in the conversation.
 </output_instructions>
-
-<examples>
-<example>
-<conversation>User: "Research the best way to do RAG for my app."</conversation>
-<output>{"need_clarification": true, "question": "To scope this correctly, I need two details:\n1. Which type of content will the app search, for example PDFs, a database, or web pages?\n2. Do you want an overview of approaches or a recommendation for a specific stack?", "verification": ""}</output>
-</example>
-
-<example>
-<conversation>User: "Compare Laravel Octane with FrankenPHP for high-traffic APIs, focusing on throughput and deployment effort."</conversation>
-<output>{"need_clarification": false, "question": "", "verification": "I have what I need. You want a comparison of Laravel Octane and FrankenPHP for high-traffic APIs, focused on throughput and deployment effort. I am starting the research now."}</output>
-</example>
-</examples>
 """
 
 BRIEF_WRITER_PROMPT="""
