@@ -24,7 +24,7 @@ def route_approve_brief(state: AgentState) -> Literal["approve_brief", "__end__"
     return "approve_brief" if state.research_brief else END
 
 
-def approve_brief(state: AgentState):
+def approve_brief(state: AgentState) -> Command[Literal["research", "scope"]]:
     decision = interrupt({"type": "approve_brief", "brief": state.research_brief})
     
     if decision.get("approved"):
