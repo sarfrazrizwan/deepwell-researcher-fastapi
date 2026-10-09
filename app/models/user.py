@@ -12,3 +12,5 @@ class User(SQLAlchemyBaseUserTableUUID, TimestampMixin, Base):
 
     first_name: Mapped[str] = mapped_column(String(255))
     last_name: Mapped[str] = mapped_column(String(255))
+    
+    threads: Mapped[list["Thread"]] = relationship(back_populates="user")
