@@ -7,11 +7,11 @@ from psycopg_pool import AsyncConnectionPool
 from app.agents.registry import build_agents
 
 
-from app.config import get_settings
+from app.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
+
     pool = AsyncConnectionPool(
         conninfo=settings.database_url,
         max_size=20,

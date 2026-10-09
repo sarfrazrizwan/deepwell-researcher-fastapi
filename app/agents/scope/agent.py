@@ -7,10 +7,9 @@ from langgraph.graph import StateGraph, START, END
 from app.agents.scope.schema import ClarifyWithUser, ResearchBriefWriter
 from app.agents.scope.prompts import SCOPING_PROMPT, BRIEF_WRITER_PROMPT
 from app.utils.utils import get_today_date_str
-from app.config import get_settings
+from app.config import settings as config
 from langgraph.types import Command
 
-config = get_settings()
 model = init_chat_model("openai:gpt-4.1", temperature=0.0, api_key=config.openai_api_key)
 
 class AgentState(BaseModel):

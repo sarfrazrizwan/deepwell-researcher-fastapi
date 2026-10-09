@@ -1,9 +1,6 @@
 from fastapi import FastAPI
-from app.api.routes import messages
-from app.config import get_settings
-from contextlib import asynccontextmanager
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph.store.postgres.aio import AsyncPostgresStore
+from app.api.routes import messages, auth 
+
 from app.core.lifespan import lifespan
 
 app = FastAPI(lifespan=lifespan)
@@ -18,4 +15,5 @@ app = FastAPI(lifespan=lifespan)
 # def read_item(item_id: int, q: str | None = None):
 #     return {"item_id": item_id, "q": q}
 
+app.include_router(auth.router)
 app.include_router(messages.router)
