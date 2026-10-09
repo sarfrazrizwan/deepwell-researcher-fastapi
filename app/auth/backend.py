@@ -13,7 +13,7 @@ bearer_transport = BearerTransport(tokenUrl="auth/jwt/login")
 def get_jwt_strategy() -> JWTStrategy[models.UP, models.ID]:
     return JWTStrategy(
         secret=settings.jwt_secret,
-        lifetime_seconds=settings.JWT_LIFETIME_SECONDS,
+        lifetime_seconds=settings.jwt_lifetime_seconds,
     )
 
 
