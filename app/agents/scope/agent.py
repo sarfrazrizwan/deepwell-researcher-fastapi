@@ -10,7 +10,7 @@ from app.utils.utils import get_today_date_str
 from app.config import settings as config
 from langgraph.types import Command
 
-model = init_chat_model("openai:gpt-4.1", temperature=0.0, api_key=config.openai_api_key)
+model = init_chat_model("openai:gpt-6-luna", temperature=0.0, api_key=config.openai_api_key)
 
 class AgentState(BaseModel):
     messages: Annotated[Sequence[BaseMessage], add_messages]
