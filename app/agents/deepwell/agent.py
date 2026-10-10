@@ -1,10 +1,12 @@
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END, add_messages
 from typing import Annotated, Sequence, Optional, Literal
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from app.agents.scope.agent import build as scope_agent
 from app.agents.research.agent import build as research_agent
 from langgraph.types import interrupt, Command
+from langchain.chat_models import init_chat_model
+from app.agents.deepwell.prompts import APPROVE_BRIEF_CLASSIFICATION_PROMPT, APPROVE_BRIEF_CLASSIFICATION_SYS_PROMPT
 
 class AgentState(BaseModel):
     messages: Annotated[Sequence[BaseMessage], add_messages] = Field(default_factory=list)
@@ -13,26 +15,28 @@ class AgentState(BaseModel):
     raw_notes: Optional[str] = None
 
 
-#todo: replace
+classifier = init_chat_model(model="openai:gpt-5.4-nano")
 
-# async def research_stub(state: AgentState) -> dict:
-#     # Fake output so you can confirm the brief arrived intact
-#     return {
-#         "messages": [AIMessage(content=f"[STUB] Research would run on:\n{state.research_brief}")]
-#     }
+class ApproveClassifier(BaseModel):
+    approved: bool = Field(description="If user is agree with generated brief approved would be True otherwise False")
+    feedback: bool = Field(description="Write feedback to user as per the user reply.")
 
-## todo: end
 def route_approve_brief(state: AgentState) -> Literal["approve_brief", "__end__"]:
     return "approve_brief" if state.research_brief else END
 
 
 def approve_brief(state: AgentState) -> Command[Literal["research", "scope"]]:
-    decision = interrupt({"type": "approve_brief", "brief": state.research_brief})
+    user_reply = interrupt({"type": "approve_brief", "brief": state.research_brief})
     
-    if decision.get("approved"):
+    decision = classifier.with_structured_output(ApproveClassifier).ainvoke(
+        [SystemMessage(content=APPROVE_BRIEF_CLASSIFICATION_SYS_PROMPT)],
+        [HumanMessage(content=APPROVE_BRIEF_CLASSIFICATION_PROMPT.format(brief=state.research_brief, user_reply=user_reply))]
+    )
+    
+    if decision.approved:
         return Command(
             goto="research",
-            update={"research_brief": decision.get("brief") or state.research_brief}
+            update={"research_brief": state.research_brief}
         )
     
     
@@ -40,7 +44,7 @@ def approve_brief(state: AgentState) -> Command[Literal["research", "scope"]]:
         goto="scope",
         update={
             "research_brief": None,
-            "messages": [HumanMessage(content=decision.get("feedback", ""))]
+            "messages": [HumanMessage(content=user_reply)]
         }
     )    
 
