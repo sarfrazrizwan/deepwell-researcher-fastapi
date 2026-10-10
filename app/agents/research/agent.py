@@ -14,6 +14,7 @@ compress_research_model = init_chat_model("openai:gpt-6-luna")
 tavily = AsyncTavilyClient()
  
 class AgentState(BaseModel):
+    research_brief: str
     researcher_messages: Annotated[Sequence[BaseMessage], add_messages]
     compressed_research: str | None = None
     raw_notes: Annotated[List[str], add] = Field(default_factory=list)
@@ -22,7 +23,7 @@ class AgentState(BaseModel):
     think_tool_count: int = 0
 
 class AgentInputState(BaseMessage):
-    researcher_messages: Annotated[Sequence[BaseMessage], add_messages]
+    research_brief: str
 
 class SearchResult(BaseModel):
     title: str
@@ -161,9 +162,9 @@ model_with_tools = model.bind_tools(tools)
 async def llm_call(state: AgentState):
     response = await model_with_tools.ainvoke(
         [SystemMessage(content=RESEARCHER_SYSTEM_PROMPT.format(
-            date=get_today_date_str()
-            
-            ))] 
+            date=get_today_date_str()))
+        ]
+        + [HumanMessage(content=state.research_brief)]
         + state.researcher_messages
     )
     
@@ -232,14 +233,16 @@ async def compress_research(state: AgentState) -> dict:
         "raw_notes" :[ "\n".join(raw_notes)]
     }
     
-builder = StateGraph(AgentState, input_schema=AgentInputState)
-builder.add_node("llm_call", llm_call)
-builder.add_node("compress_research", compress_research)
-builder.add_node("tool_node", tool_node)
+def build():
+    
+    builder = StateGraph(AgentState, input_schema=AgentInputState)
+    builder.add_node("llm_call", llm_call)
+    builder.add_node("compress_research", compress_research)
+    builder.add_node("tool_node", tool_node)
 
-builder.add_edge(START, "llm_call")
-builder.add_conditional_edges("llm_call", should_continue)
-builder.add_edge("tool_node", "llm_call")
-builder.add_edge("compress_research", END)
+    builder.add_edge(START, "llm_call")
+    builder.add_conditional_edges("llm_call", should_continue)
+    builder.add_edge("tool_node", "llm_call")
+    builder.add_edge("compress_research", END)
 
-agent = builder.compile()
+    return builder.compile()
