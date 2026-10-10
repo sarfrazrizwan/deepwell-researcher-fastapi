@@ -4,6 +4,7 @@ from app.schema.message import MessageRequest, MessageResponse
 from app.api.deps import DeepwellAgent
 from langchain_core.messages import HumanMessage
 from uuid import uuid4
+from langgraph.types import Command
 
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -50,8 +51,15 @@ async def send_message(req: MessageRequest, agent: DeepwellAgent):
     
     thread_id = req.thread_id or str(uuid4())
     config = _config(thread_id=thread_id)
-    print(config)
-    await agent.ainvoke({"messages": [HumanMessage(content=req.message)]}, config=config)
+
+    snapshot = await agent.aget_state(config=config)
+    is_paused = any(tasks.interrupts for tasks in snapshot.tasks)
+    
+    if is_paused:
+        await agent.ainvoke(Command(resume=req.message))
+    
+    else:     
+        await agent.ainvoke({"messages": [HumanMessage(content=req.message)]}, config=config)
     
     return await _build_response(agent=agent, thread_id=thread_id)
 
