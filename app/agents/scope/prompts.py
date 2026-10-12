@@ -176,6 +176,7 @@ Apply these checks while writing:
 
 <output_instructions>
 - Output exactly one paragraph in the first person.
+- At the end ask for confirmation, something like e.g do you want to continue?
 - Do not refer to "the user" and do not write in the third person.
 - Do not include a title, bullet points, headings, labels, quotation marks around the paragraph, or any commentary before or after it.
 - The paragraph may be long when the user gave many details. Length is acceptable. Lost information is not.
