@@ -10,14 +10,13 @@ from app.utils.utils import get_today_date_str
 from app.config import settings as config
 from langgraph.types import Command
 
-model = init_chat_model("openai:gpt-6-luna", temperature=0.0, api_key=config.openai_api_key)
+model = init_chat_model("openai:gpt-6-luna", temperature=1, api_key=config.openai_api_key)
 
 class AgentState(BaseModel):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     research_brief: Optional[str] = None
     
     
-
 async def clarify_with_user(state: AgentState) -> Command[Literal["write_research_brief", "__end__"]]:
     
     chat_model = model.with_structured_output(ClarifyWithUser)
@@ -49,7 +48,7 @@ async def write_research_brief(state: AgentState) -> dict:
     ))])
     
     
-    return { "research_brief": response.research_brief }
+    return { "research_brief": response.research_brief, messages: [AIMessage(content=response.research_brief, name="text-block")] }
     
     
 def build():
