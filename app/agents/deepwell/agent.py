@@ -25,11 +25,11 @@ def route_approve_brief(state: AgentState) -> Literal["approve_brief", "__end__"
     return "approve_brief" if state.research_brief else END
 
 
-def approve_brief(state: AgentState) -> Command[Literal["research", "scope"]]:
+async def approve_brief(state: AgentState) -> Command[Literal["research", "scope"]]:
     user_reply = interrupt({"type": "approve_brief", "brief": state.research_brief})
     
-    decision = classifier.with_structured_output(ApproveClassifier).ainvoke(
-        [SystemMessage(content=APPROVE_BRIEF_CLASSIFICATION_SYS_PROMPT)],
+    decision = await classifier.with_structured_output(ApproveClassifier).ainvoke(
+        [SystemMessage(content=APPROVE_BRIEF_CLASSIFICATION_SYS_PROMPT)]+
         [HumanMessage(content=APPROVE_BRIEF_CLASSIFICATION_PROMPT.format(brief=state.research_brief, user_reply=user_reply))]
     )
     
