@@ -1,13 +1,15 @@
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END, add_messages
-from langchain_core.messages import BaseMessage, SystemMessage, ToolMessage, HumanMessage, filter_messages
+from langchain_core.messages import BaseMessage, SystemMessage, ToolMessage, HumanMessage, filter_messages, AIMessage
 from typing import Literal, Sequence, Annotated, List
 from operator import add
 from langchain.chat_models import init_chat_model
-from langchain.tools import tool, InjectedToolArg
+from langchain.tools import tool
 from tavily import AsyncTavilyClient
 from app.utils.utils import get_today_date_str
-from app.agents.research.prompts import RESEARCHER_SYSTEM_PROMPT, SUMMARIZE_CONTENT_PROMPT, COMPRESS_RESEARCH_SYS_PROMPT, COMPRESS_RESEARCH_HUMAN_PROMPT
+from app.agents.research.prompts import RESEARCHER_SYSTEM_PROMPT, COMPRESS_RESEARCH_SYS_PROMPT, COMPRESS_RESEARCH_HUMAN_PROMPT
+from app.tools.web_search.tool import web_search
+from app.tools.think_tool.tool import think_tool
 
 model = init_chat_model("openai:gpt-6-luna")
 compress_research_model = init_chat_model("openai:gpt-6-luna")
@@ -25,134 +27,11 @@ class AgentState(BaseModel):
 class AgentInputState(BaseMessage):
     research_brief: str
 
-class SearchResult(BaseModel):
-    title: str
-    url: str
-    content: str
-    score: float
-    raw_content: str | None = None
-    id: str
 
-class ContentSummary(BaseModel):
-    summary: str = Field(description="Concise summary of content details")
-    key_expert: str = Field(description="Important notes from the content")
 
 class CompressedResearch(BaseModel):
     compressed_research: str = Field(description="It give comprehensive research without losing any of details but in organize format")
     
-def filter_unique_searches(searches: list[SearchResult]) -> list[SearchResult]:
-    
-    unique: dict[str, SearchResult] = {}
-    for search in searches:
-        unique[search['url']] = search
-    
-    return list(unique.values())
-
-async def summarize_search_results(search: SearchResult) -> str:
-  
-    summarizer = await model.with_structured_output(ContentSummary).ainvoke([
-        HumanMessage(
-            content=SUMMARIZE_CONTENT_PROMPT.format(
-                date=get_today_date_str(),
-                query=search["title"], 
-                content=search["raw_content"]
-            ))
-    ])
-    
-    return (
-        f"<summary>{summarizer.summary}</summary>\n\n"
-        f"<key_experts>{summarizer.key_expert}</key_experts>"
-        )
-
-async def process_search_results(searches: list[SearchResult]) -> dict:
-    
-    contents = {}
-    for search in searches:
-        print(search)
-        if not search.get("raw_content"):
-            content = search.get("content")
-        else:
-            content = await summarize_search_results(search=search)
-        
-        contents[search['url']] = {
-            "title": search["title"],
-            "content": content
-        }
-    
-    return contents    
-
-
-def format_search_results(items: dict) -> str:
-
-    formatted_str: str = ""
-    for i, (url, item ) in enumerate(items.items(), 1):
-        formatted_str += f"{i}. SOURCE: {url} \n"
-        formatted_str += f"TITLE: {item["title"]} \n"
-        formatted_str += f"CONTENT: {item["content"]} \n"
-        formatted_str += "=" * 80 + "\n\n"
-    
-    return formatted_str 
-
-@tool(parse_docstring=True)
-async def web_search(
-    query: str,
-    max_results: Annotated[int, InjectedToolArg] = 3,
-    include_raw_content: Annotated[int, InjectedToolArg] = True
-):
-    """Fetch results from Tavily search API with content summarization.
-
-    Args:
-        query: A single search query to execute
-        max_results: Maximum number of results to return
-
-    Returns:
-        Formatted string of search results with summaries
-    """
-    
-    response: list[SearchResult] = await tavily.search(
-        query=query, 
-        max_results=max_results, 
-        include_raw_content=include_raw_content
-    )
-    
-    results = response["results"]
-    unique_results: list[SearchResult] = filter_unique_searches(results)
-    processed_results = await process_search_results(unique_results)
-    
-    return format_search_results(processed_results)
-
-
-@tool
-def think_tool(reflection: Annotated[str, "Your detailed reflection on findings, gaps, and next steps."]) -> str:
-    """Tool for strategic reflection on research progress and decision-making.
-    
-    
-    Use this tool after each search to analyze results and plan next steps systematically.
-    This creates a deliberate pause in the research workflow for quality decision-making.
-    
-    
-    When to use:
-    - After receiving search results: What key information did I find?
-    - Before deciding next steps: Do I have enough to answer comprehensively?
-    - When assessing research gaps: What specific information am I still missing?
-    - Before concluding research: Can I provide a complete answer now?
-    
-    
-    Reflection should address:
-    1. Analysis of current findings - What concrete information have I gathered?
-    2. Gap assessment - What crucial information is still missing?
-    3. Quality evaluation - Do I have sufficient evidence/examples for a good answer?
-    4. Strategic decision - Should I continue searching or provide my answer?
-    
-    
-    Args:
-        reflection: Your detailed reflection on research progress, findings, gaps, and next steps
-    
-            
-    Returns:
-        Confirmation that reflection was recorded for decision-making
-    """
-    return f"Reflection recorded: {reflection}"
     
 tools = [web_search, think_tool]
 tools_by_name = {t.name: t for t in tools}    
