@@ -10,32 +10,43 @@ This repository holds the backend: a FastAPI service that runs a LangGraph agent
 
 ## How it works
 
-Deepwell is a parent LangGraph graph with two subgraphs.
+Deepwell is a parent LangGraph graph with two subgraphs and one human approval node between them.
 
-```
-User message
-     │
-     ▼
-┌──────────────────────┐
-│   Scope subgraph     │  Asks clarifying questions when the request is vague
-│  (human in the loop) │  Drafts a research brief, waits for approve / revise
-└──────────┬───────────┘
-           │ research_brief
-           ▼
-┌──────────────────────┐
-│ Researcher subgraph  │  LLM + tools loop (web_search, think_tool)
-│                      │  Compresses findings into a cited evidence report
-└──────────┬───────────┘
-           │ report
-           ▼
-      Final answer
-```
+<p align="center">
+  <img src="static/parent_graph.png" alt="Deepwell parent graph" width="200">
+</p>
 
-**Scope stage.** The agent checks whether the request has enough detail. If not, it asks the user a question and pauses using LangGraph `interrupt()`. Once scope is clear, it drafts a research brief and pauses again for approval. The user approves or asks for changes, and the graph resumes with `Command(resume=...)`.
+| Node            | Type     | Role                                                     |
+| --------------- | -------- | -------------------------------------------------------- |
+| `scope`         | Subgraph | Clarifies the request and drafts a research brief        |
+| `approve_brief` | Node     | Pauses for the user to approve or revise the brief       |
+| `research`      | Subgraph | Researches the approved brief and returns a cited report |
 
-**Research stage.** The researcher receives only the approved brief. It runs a bounded tool calling loop, collecting sourced evidence. A compression step condenses the full tool history into a structured report, keeping every fact and citation intact while cutting wording. Raw notes are kept separately as an audit trail for citation checks and debugging.
+When the user asks for changes, `approve_brief` routes back to `scope` with the feedback. Once approved, it hands the brief to `research`.
 
-**State isolation.** Each subgraph keeps private working state (`researcher_messages`, `notes`) and exposes only its output keys to the parent. Internal LLM calls are tagged so tool calling tokens never leak into the user facing stream.
+### Full graph
+
+The expanded view shows every node inside both subgraphs.
+
+<p align="center">
+  <img src="static/full_graph.png" alt="Deepwell full graph with subgraphs expanded" width="480">
+</p>
+
+### Scope stage
+
+<p align="center">
+  <img src="static/scope_graph.png" alt="Scope subgraph" width="240">
+</p>
+
+`clarify_with_user` checks whether the request has enough detail. If not, it asks the user a question and pauses using LangGraph `interrupt()`. Once scope is clear, `write_research_brief` drafts the brief. The parent graph then pauses at `approve_brief`, and the user's answer resumes the graph through `Command(resume=...)`.
+
+### Research stage
+
+The researcher receives only the approved brief. `llm_call` and `tool_node` run a bounded tool calling loop (`web_search`, `think_tool`) to collect sourced evidence. When the loop ends, `compress_research` condenses the full tool history into a structured report. It keeps every fact and citation intact while cutting wording. Raw notes are kept separately as an audit trail for citation checks and debugging.
+
+### State isolation
+
+Each subgraph keeps private working state (`researcher_messages`, `notes`) and exposes only its output keys to the parent. Internal LLM calls are tagged, so tool calling tokens never leak into the user facing stream.
 
 ---
 
@@ -78,7 +89,7 @@ Interactive docs are available at `/docs` once the server runs.
 - [uv](https://docs.astral.sh/uv/) for dependency management
 - Docker and Docker Compose (runs PostgreSQL)
 - An OpenAI API key
-- A web search API key (for the researcher's search tool)
+- A Tavily API key (for the researcher's search tool)
 
 ### Setup
 
@@ -89,7 +100,7 @@ cd deepwell-researcher-fastapi
 uv sync
 
 cp .env.example .env
-# fill in database URL and API keys
+# fill in database credentials and API keys
 ```
 
 ### Database
@@ -104,7 +115,7 @@ docker compose up -d
 uv run alembic upgrade head
 ```
 
-Make sure `DATABASE_URL` in `.env` matches the credentials and port in `docker-compose.yml`.
+Make sure the `POSTGRES_*` values in `.env` match the credentials and port in `docker-compose.yml`.
 
 LangGraph creates its own checkpoint and store tables on first run. Alembic is configured to ignore those tables, so autogenerate never tries to drop them.
 
@@ -120,9 +131,9 @@ uv run uvicorn app.main:app --reload --env-file .env
 
 | Variable            | Description                                            |
 | ------------------- | ------------------------------------------------------ |
-| `POSTGRES_USER`     | PostgreSQL connection string                           |
-| `POSTGRES_PASSWORD` | PostgreSQL connection string                           |
-| `POSTGRES_DB`       | PostgreSQL connection string                           |
+| `POSTGRES_USER`     | PostgreSQL username                                    |
+| `POSTGRES_PASSWORD` | PostgreSQL password                                    |
+| `POSTGRES_DB`       | PostgreSQL database name                               |
 | `OPENAI_API_KEY`    | OpenAI key for scope, research, and compression models |
 | `TAVILY_API_KEY`    | Key for the web search tool                            |
 | `SECRET_KEY`        | App secret key                                         |
@@ -137,13 +148,13 @@ See `.env.example` for the full list.
 - [x] Researcher subgraph with tool loop and compression
 - [x] Postgres checkpointer and store
 - [x] Threads table with status / stage tracking
+- [x] Dockerized PostgreSQL for local development
 - [ ] Reorganize into a clean `app/` module layout
 - [ ] Token streaming over SSE
 - [ ] Background job queue for long research runs (retries, durability)
 - [ ] Parallel researchers coordinated by a supervisor
 - [ ] Separate storage for raw notes outside the checkpoint
 - [ ] Tests and CI
-- [x] Dockerized PostgreSQL for local development
 - [ ] Dockerize the API service and deploy publicly
 - [ ] Vue frontend repository link
 
@@ -156,5 +167,3 @@ Deepwell is a minimal reference implementation of a research agent. It contains 
 I use extended versions of this core in other projects, where I add domain specific tools and extra graph nodes on top. Keeping this repository minimal makes the base architecture easy to read, reuse, and build on.
 
 I'm a backend engineer with 7+ years of Laravel production experience. The design choices here (status modelling, migrations, background work) come from running real production apps.
-
----
